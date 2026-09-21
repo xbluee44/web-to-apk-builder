@@ -1,206 +1,127 @@
-package {{PACKAGE}};
+package com.webtemplate;
 
-import android.app.Activity;
-import android.os.Build;
+import android.annotation.SuppressLint;
+import android.app.DownloadManager;
+import android.content.Context;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.KeyEvent;
 import android.view.View;
+import android.webkit.CookieManager;
+import android.webkit.DownloadListener;
+import android.webkit.GeolocationPermissions;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
 
-public class MainActivity extends Activity {
+public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
     private ProgressBar progressBar;
-    private long lastBackPress = 0;
 
+    @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        String websiteUrl = getString(R.string.website_url);
 
         FrameLayout layout = new FrameLayout(this);
         layout.setLayoutParams(new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT));
-
-        progressBar = new ProgressBar(this, null,
-            android.R.attr.progressBarStyleHorizontal);
-        progressBar.setMax(100);
-        progressBar.setVisibility(View.GONE);
-        FrameLayout.LayoutParams pbParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, 8);
-        pbParams.gravity = android.view.Gravity.TOP;
-        layout.addView(progressBar, pbParams);
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
 
         webView = new WebView(this);
-        WebSettings ws = webView.getSettings();
-        ws.setJavaScriptEnabled(true);
-        ws.setDomStorageEnabled(true);
-        ws.setAllowFileAccess(true);
-        ws.setLoadWithOverviewMode(true);
-        ws.setUseWideViewPort(true);
-        ws.setBuiltInZoomControls(false);
-        ws.setDisplayZoomControls(false);
+        progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        progressBar.setMax(100);
+        progressBar.setVisibility(View.GONE);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        }
+        layout.addView(webView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, 10);
+        p.gravity = android.view.Gravity.TOP;
+        layout.addView(progressBar, p);
+        setContentView(layout);
+
+        WebSettings s = webView.getSettings();
+        s.setJavaScriptEnabled(true);
+        s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
+        s.setBuiltInZoomControls(false);
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
+        s.setGeolocationEnabled(true);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                view.loadUrl(url);
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                view.loadUrl(request.getUrl().toString());
                 return true;
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                progressBar.setVisibility(View.GONE);
             }
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
-                progressBar.setProgress(newProgress);
-                if (newProgress >= 100) {
-                    progressBar.setVisibility(View.GONE);
-                } else {
+                if (newProgress < 100) {
                     progressBar.setVisibility(View.VISIBLE);
-                }
-            }
-        });
-
-        layout.addView(webView);
-        setContentView(layout);
-
-        webView.loadUrl("{{URL}}");
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (webView != null && webView.canGoBack()) {
-                webView.goBack();
-                return true;
-            } else {
-                long now = System.currentTimeMillis();
-                if (now - lastBackPress < 2000) {
-                    finish();
+                    progressBar.setProgress(newProgress);
                 } else {
-                    lastBackPress = now;
-                    Toast.makeText(this, "Tekan sekali lagi untuk keluar",
-                        Toast.LENGTH_SHORT).show();
-                }
-                return true;
-            }
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (webView != null) webView.destroy();
-        super.onDestroy();
-    }
-}
                     progressBar.setVisibility(View.GONE);
-                } else {
-                    progressBar.setVisibility(View.VISIBLE);
+                }
+            }
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback cb) {
+                cb.invoke(origin, true, false);
+            }
+        });
+
+        webView.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String ua, String cd, String mt, long cl) {
+                try {
+                    DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
+                    r.setMimeType(mt);
+                    r.addRequestHeader("User-Agent", ua);
+                    r.setDescription("Downloading...");
+                    r.setTitle(android.webkit.URLUtil.guessFileName(url, cd, mt));
+                    r.allowScanningByMediaScanner();
+                    r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
+                            android.webkit.URLUtil.guessFileName(url, cd, mt));
+                    DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+                    if (dm != null) dm.enqueue(r);
+                    Toast.makeText(getApplicationContext(), "Downloading...", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(getApplicationContext(), "Gagal: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 }
             }
         });
 
-        layout.addView(webView);
-        setContentView(layout);
-
-        webView.loadUrl("{{URL}}");
+        webView.loadUrl(websiteUrl);
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (webView != null && webView.canGoBack()) {
-                webView.goBack();
-                return true;
-            } else {
-                long now = System.currentTimeMillis();
-                if (now - lastBackPress < 2000) {
-                    finish();
-                } else {
-                    lastBackPress = now;
-                    Toast.makeText(this, "Tekan sekali lagi untuk keluar",
-                        Toast.LENGTH_SHORT).show();
-                }
-                return true;
-            }
+        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
+            webView.goBack();
+            return true;
         }
         return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (webView != null) webView.destroy();
-        super.onDestroy();
-    }
-}
-            @Override
-            public void onPageStarted(WebView view, String url, Bitmap favicon) {
-                progressBar.setVisibility(View.VISIBLE);
-                progressBar.setProgress(0);
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                progressBar.setVisibility(View.GONE);
-            }
-        });
-
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                progressBar.setProgress(newProgress);
-                if (newProgress >= 100) progressBar.setVisibility(View.GONE);
-            }
-        });
-
-        layout.addView(webView);
-        setContentView(layout);
-
-        // Load URL
-        webView.loadUrl("{{URL}}");
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (webView != null && webView.canGoBack()) {
-                webView.goBack();
-                return true;
-            } else {
-                // Double-tap back untuk keluar
-                long now = System.currentTimeMillis();
-                if (now - lastBackPress < 2000) {
-                    finish();
-                } else {
-                    lastBackPress = now;
-                    Toast.makeText(this, "Tekan sekali lagi untuk keluar",
-                        Toast.LENGTH_SHORT).show();
-                }
-                return true;
-            }
-        }
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (webView != null) webView.destroy();
-        super.onDestroy();
     }
 }
