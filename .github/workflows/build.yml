@@ -1,171 +1,33 @@
 name: Build APK
 
 on:
-  repository_dispatch:
-    types: [build-apk]
+  push:
+    branches: [ main ]
   workflow_dispatch:
-    inputs:
-      url:
-        description: 'Website URL'
-        required: true
-        default: 'https://example.com'
-      app_name:
-        description: 'App Name'
-        required: true
-        default: 'MyApp'
-      package:
-        description: 'Package Name'
-        required: true
-        default: 'com.example.myapp'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup JDK 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
-
+          distribution: temurin
+          java-version: 17
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-34 build-tools;34.0.0'
-
-      - name: Get inputs
-        id: vars
-        run: |
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            URL="${{ github.event.client_payload.url }}"
-            APP_NAME="${{ github.event.client_payload.app_name }}"
-            PKG="${{ github.event.client_payload.package }}"
-          else
-            URL="${{ github.event.inputs.url }}"
-            APP_NAME="${{ github.event.inputs.app_name }}"
-            PKG="${{ github.event.inputs.package }}"
-          fi
-
-          # Bersihkan & validasi
-          URL=$(echo "$URL" | tr -d ' ')
-          APP_NAME=$(echo "$APP_NAME" | tr -d ' ')
-          PKG=$(echo "$PKG" | tr -d ' ')
-
-          if [ -z "$URL" ] || [ -z "$APP_NAME" ] || [ -z "$PKG" ]; then
-            echo "ERROR: Missing required fields"
-            exit 1
-          fi
-
-          echo "URL=$URL" >> $GITHUB_OUTPUT
-          echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "PKG=$PKG" >> $GITHUB_OUTPUT
-          echo "PKG_PATH=$(echo $PKG | tr '.' '/')" >> $GITHUB_OUTPUT
-          echo "---"
-          echo "URL: $URL"
-          echo "APP_NAME: $APP_NAME"
-          echo "PKG: $PKG"
-
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+      - name: Setup Gradle 8.2
+        uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.2
-
-      - name: Prepare project structure
-        run: |
-          PKG="${{ steps.vars.outputs.PKG }}"
-          PKG_PATH="${{ steps.vars.outputs.PKG_PATH }}"
-          URL="${{ steps.vars.outputs.URL }}"
-          APP_NAME="${{ steps.vars.outputs.APP_NAME }}"
-
-          # Buat folder package
-          mkdir -p app/src/main/java/$PKG_PATH
-
-          # Cek apakah template ada
-          if [ ! -f "app/src/main/java/com/webtemplate/MainActivity.java" ]; then
-            echo "ERROR: Template MainActivity tidak ditemukan!"
-            ls -la app/src/main/java/com/webtemplate/ || true
-            exit 1
-          fi
-
-          # Copy template ke folder package baru
-          cp app/src/main/java/com/webtemplate/MainActivity.java \
-             app/src/main/java/$PKG_PATH/MainActivity.java
-
-          # Replace placeholder di MainActivity
-          sed -i "s|{{PACKAGE}}|$PKG|g" app/src/main/java/$PKG_PATH/MainActivity.java
-          sed -i "s|{{URL}}|$URL|g" app/src/main/java/$PKG_PATH/MainActivity.java
-
-          # Replace di AndroidManifest
-          sed -i "s|{{PACKAGE}}|$PKG|g" app/src/main/AndroidManifest.xml
-          sed -i "s|{{APP_NAME}}|$APP_NAME|g" app/src/main/AndroidManifest.xml
-
-          # Replace di build.gradle
-          sed -i "s|{{PACKAGE}}|$PKG|g" app/build.gradle
-
-          # Hapus template lama
-          rm -rf app/src/main/java/com/webtemplate
-
-          # Verifikasi
-          echo "=== MainActivity.java ==="
-          head -20 app/src/main/java/$PKG_PATH/MainActivity.java
-          echo ""
-          echo "=== Structure ==="
-          find app/src/main/java -type f
-
-      - name: Ensure gradle wrapper exists
-        run: |
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "Download gradle-wrapper.jar..."
-            mkdir -p gradle/wrapper
-            curl -L -o gradle/wrapper/gradle-wrapper.jar \
-              https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar
-          fi
-          chmod +x gradlew || true
-
-      - name: Verify project files
-        run: |
-          echo "=== Root files ==="
-          ls -la
-          echo ""
-          echo "=== Gradle wrapper ==="
-          ls -la gradle/wrapper/ || true
-          echo ""
-          echo "=== App build.gradle ==="
-          cat app/build.gradle
-          echo ""
-          echo "=== Manifest ==="
-          cat app/src/main/AndroidManifest.xml
-
-      - name: Build Debug APK
-        run: |
-          ./gradlew assembleDebug --no-daemon --stacktrace
-
-      - name: Find APK
-        id: find_apk
-        run: |
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "ERROR: APK tidak ditemukan!"
-            find . -name "*.apk" || true
-            exit 1
-          fi
-          echo "APK found: $APK_PATH"
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-
-      - name: Rename & Prepare output
-        run: |
-          mkdir -p output
-          APP_NAME="${{ steps.vars.outputs.APP_NAME }}"
-          cp "${{ steps.find_apk.outputs.apk_path }}" "output/${APP_NAME}.apk"
-          ls -la output/
-
+      - name: Generate Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.2
+      - name: Build APK
+        run: ./gradlew assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: apk-artifact
-          path: output/*.apk
-          retention-days: 7
+          name: web-to-apk-debug
+          path: app/build/outputs/apk/debug/*.apk
