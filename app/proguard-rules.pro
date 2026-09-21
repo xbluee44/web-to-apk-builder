@@ -1,4 +1,5 @@
--keep class * extends android.app.Activity
+# WebToAPK Builder
 -keepclassmembers class * {
-    public *;
+    @android.webkit.JavascriptInterface <methods>;
 }
+-keep class **.MainActivity { *; }
