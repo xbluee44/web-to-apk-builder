@@ -1,15 +1,11 @@
-# Web to APK Builder
+# My App
 
-Auto-build APK dari URL website via GitHub Actions.
+APK dibuild otomatis dari WebToAPK Builder.
 
-## Cara Pakai
+## Website Target
+https://google.com
 
-### Manual (via GitHub UI)
-1. Buka tab **Actions**
-2. Pilih **Build APK** → **Run workflow**
-3. Isi URL, App Name, Package Name
-4. Klik **Run workflow**
-5. Tunggu selesai → download artifact
-
-### Otomatis (via API)
-Kirim POST ke:
+## Cara Build
+1. Push ke branch `main`
+2. Buka tab Actions
+3. Download artifact APK
